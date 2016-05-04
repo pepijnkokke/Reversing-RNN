@@ -6,27 +6,47 @@ import read_data
 
 
 class Encoder:
-    def __init__(self, K, hidden_layer=8, e=lambda x: x):
+    def __init__(self, K, hidden_layer=8):
         """
         K: dimensionality of the word embeddings
         hidden_layer: size of hidden layer
-        e: word embedding function
         """
-
-        self.e = e
 
         # state of the hidden layer
         self.h = theano.shared(np.zeros(hidden_layer))
 
-        # input weights
-        self.Whx = theano.shared(np.random.uniform(
+        # input weights to the hidden layer and the gates
+        self.W = theano.shared(np.random.uniform(
             size=(hidden_layer, K),
             low=-0.1, high=0.1))
 
-        # recurrent hidden layer weights
-        self.Whh = theano.shared(np.random.uniform(
+        self.Wz = theano.shared(np.random.uniform(
+            size=(hidden_layer, K),
+            low=-0.1, high=0.1))
+
+        self.Wr = theano.shared(np.random.uniform(
+            size=(hidden_layer, K),
+            low=-0.1, high=0.1))
+
+        # recurrent weights for the hidden layer and the gates
+        self.U = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1))
+
+        self.Uz = theano.shared(np.random.uniform(
+            size=(hidden_layer, hidden_layer),
+            low=-0.1, high=0.1))
+
+        self.Ur = theano.shared(np.random.uniform(
+            size=(hidden_layer, hidden_layer),
+            low=-0.1, high=0.1))
+
+        # create the input and output variables of the encoder
+        self.input = T.matrix()
+        self.output = self.feed_sentence(self.input)
+        self.encode = theano.function(inputs=[self.input], outputs=[self.output],
+                                      updates=[(self.h, self.output)])
+
 
     def feed_word(self, x_t, h_tm1):
         """
@@ -35,22 +55,23 @@ class Encoder:
         h_tm1: the state of the hidden layer before the current step
 
         Output:
-        htj: the state of the hidden layer after the current step
-        """
-        e = self.e(x_t)
-        ht = T.nnet.sigmoid(self.Whx.dot(e) + self.Whh.dot(h_tm1))
-
-        return ht
-
-    def feed_sentence(self):
-        """
-        Output:
-        A function that updates the hidden state based on a given matrix of
-        words.
+        ht: the state of the hidden layer after the current step
         """
 
-        # the variable used as input to the function
-        input = T.matrix()
+        # update and reset gate
+        z = T.nnet.sigmoid(self.Wz.dot(x_t) + self.Uz.dot(h_tm1))
+        r = T.nnet.sigmoid(self.Wr.dot(x_t) + self.Ur.dot(h_tm1))
+
+        # candidate update
+        h_candidate = T.nnet.sigmoid(self.W.dot(x_t) + self.U.dot(r * h_tm1))
+
+        return (1 - z) * (h_tm1) + z * (h_candidate)
+
+    def feed_sentence(self, input):
+        """
+        Input: a Theano matrix variable representing an input sentence
+        Output: The variable holding the result
+        """
 
         # This scan is basically a reduce operation.
         #
@@ -66,12 +87,7 @@ class Encoder:
                                  sequences=[input])
 
         # we're only interested in the final state
-        result = results[-1]
-
-        f = theano.function(inputs=[input], outputs=result,
-                            updates=[(self.h, result)])
-
-        return f
+        return results[-1]
 
 
 def encode_sentence(sentence, encoding, reversed=False):
@@ -93,11 +109,17 @@ def main():
     Y = [encode_sentence(s, encoding, reversed=True) for s in sentences]
 
     encoder = Encoder(39)
-    f = encoder.feed_sentence()
+    out = encoder.output
+    error = out.dot(out)
+
+    # just checking if the gradient can be computed
+    grad = T.grad(error, wrt=encoder.Wr)
+    grad_f = theano.function(inputs=[encoder.input], outputs=[grad])
 
     for sentence in X:
-        f(sentence)
+        encoder.encode(sentence)
         print encoder.h.eval()
+        print grad_f(sentence)
 
 
 if __name__ == '__main__':
