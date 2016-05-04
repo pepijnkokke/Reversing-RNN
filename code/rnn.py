@@ -63,7 +63,7 @@ class Encoder:
         r = T.nnet.sigmoid(self.Wr.dot(x_t) + self.Ur.dot(h_tm1))
 
         # candidate update
-        h_candidate = T.nnet.sigmoid(self.W.dot(x_t) + self.U.dot(r * h_tm1))
+        h_candidate = T.nnet.tanh(self.W.dot(x_t) + self.U.dot(r * h_tm1))
 
         return (1 - z) * (h_tm1) + z * (h_candidate)
 
