@@ -4,8 +4,7 @@ import theano.tensor as T
 import numpy         as np
 import read_data
 
-
-class Encoder:
+class GRU:
     def __init__(self, K, hidden_layer=8):
         """
         K: dimensionality of the word embeddings
@@ -41,14 +40,34 @@ class Encoder:
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1))
 
+
+
+class Decoder(GRU):
+    def __init__(self, K, hidden_layer=8):
+        GRU.__init__(self, K, hidden_layer)
+
+        # create the input and output variables of the decoder
+        self.input  = T.vector()
+        self.output = T.matrix()
+        #self.decode = wisten we het maar
+
+    def dec_word(self):
+
+
+
+
+class Encoder(GRU):
+    def __init__(self, K, hidden_layer=8):
+        GRU.__init__(self, K, hidden_layer)
+
         # create the input and output variables of the encoder
-        self.input = T.matrix()
-        self.output = self.feed_sentence(self.input)
+        self.input  = T.matrix()
+        self.output = self.enc_sentence(self.input)
         self.encode = theano.function(inputs=[self.input], outputs=[self.output],
                                       updates=[(self.h, self.output)])
 
 
-    def feed_word(self, x_t, h_tm1):
+    def enc_word(self, x_t, h_tm1):
         """
         Input:
         x_t: the current word (a K-dimensional vector)
@@ -63,11 +82,12 @@ class Encoder:
         r = T.nnet.sigmoid(self.Wr.dot(x_t) + self.Ur.dot(h_tm1))
 
         # candidate update
-        h_candidate = T.nnet.tanh(self.W.dot(x_t) + self.U.dot(r * h_tm1))
+        h_candidate = T.tanh(self.W.dot(x_t) + self.U.dot(r * h_tm1))
 
         return (1 - z) * (h_tm1) + z * (h_candidate)
 
-    def feed_sentence(self, input):
+
+    def enc_sentence(self, input):
         """
         Input: a Theano matrix variable representing an input sentence
         Output: The variable holding the result
@@ -82,7 +102,7 @@ class Encoder:
         # It iterates over each row (first dimension) of the matrix `xs` and
         # returns a list giving each intermediate value, along with a list of
         # updates which we don't use.
-        results, _ = theano.scan(lambda x_t, h_tm1: self.feed_word(x_t, h_tm1),
+        results, _ = theano.scan(lambda x_t, h_tm1: self.enc_word(x_t, h_tm1),
                                  outputs_info=self.h,
                                  sequences=[input])
 
