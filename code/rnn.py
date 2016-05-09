@@ -41,6 +41,8 @@ class Encoder:
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1))
 
+        self.V = theano.shared(np.eye(hidden_layer))
+
         # create the input and output variables of the encoder
         self.input = T.matrix()
         self.output = self.feed_sentence(self.input)
@@ -87,7 +89,9 @@ class Encoder:
                                  sequences=[input])
 
         # we're only interested in the final state
-        return results[-1]
+        result = results[-1]
+
+        return T.tanh(self.V.dot(result))
 
 
 def encode_sentence(sentence, encoding, reversed=False):
