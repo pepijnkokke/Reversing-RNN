@@ -40,6 +40,8 @@ class GRU:
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1))
 
+        # bonus extra final happy fun time transformation (linear)
+        self.V = theano.shared(np.eye(hidden_layer))
 
 
 class Decoder(GRU):
@@ -52,6 +54,7 @@ class Decoder(GRU):
         #self.decode = wisten we het maar
 
     def dec_word(self):
+        pass
 
 
 
@@ -107,7 +110,9 @@ class Encoder(GRU):
                                  sequences=[input])
 
         # we're only interested in the final state
-        return results[-1]
+        result = results[-1]
+
+        return T.tanh(self.V.dot(result))
 
 
 def encode_sentence(sentence, encoding, reversed=False):
