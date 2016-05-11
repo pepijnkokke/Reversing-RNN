@@ -48,15 +48,59 @@ class Decoder(GRU):
     def __init__(self, K, hidden_layer=8):
         GRU.__init__(self, K, hidden_layer)
 
+        # additional weights for the initial input
+        self.C = theano.shared(np.random.uniform(
+            size=(hidden_layer, hidden_layer),
+            low=-0.1, high=0.1))
+
+        self.Cz = theano.shared(np.random.uniform(
+            size=(hidden_layer, hidden_layer),
+            low=-0.1, high=0.1))
+
+        self.Cr = theano.shared(np.random.uniform(
+            size=(hidden_layer, hidden_layer),
+            low=-0.1, high=0.1))
+
+        # the vocabulary
+        self.vocab = theano.shared(np.eye(K))
+
+        # the first word
+        self.y0 = np.zeros(K)
+
+        self.G = theano.shared(np.random.uniform(
+            size=(K, K),
+            low=-0.1, high=0.1))
+
         # create the input and output variables of the decoder
         self.input  = T.vector()
         self.output = T.matrix()
         #self.decode = wisten we het maar
 
-    def dec_word(self):
-        pass
+    def dec_word(self, y_tm1, h_tm1, c):
+        """
+        Input:
+        y_tm1: the previously generated word (a K-dimensional vector)
+        h_tm1: the state of the hidden layer before the current step
+        c    : the output of the encoder
 
+        Output:
+        ht: the state of the hidden layer after the current step
+        """
 
+        # update and reset gate
+        z = T.nnet.sigmoid(self.Wz.dot(y_tm1) + self.Uz.dot(h_tm1) + self.Cz.dot(c))
+        r = T.nnet.sigmoid(self.Wr.dot(y_tm1) + self.Ur.dot(h_tm1) + self.Cr.dot(c))
+
+        # candidate update
+        h_candidate = T.tanh(self.W.dot(x_t) + self.U.dot(r * h_tm1) + self.C.dot(c))
+
+        return (1 - z) * (h_tm1) + z * (h_candidate)
+
+    def dec_sentence(self, c):
+        h = self.V.T.dot(c)
+
+        # TODO: use the hidden states and shit
+        next_word = T.max(T.nnet.softmax(G.dot(self.vocab)))
 
 
 class Encoder(GRU):
