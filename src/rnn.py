@@ -118,7 +118,9 @@ def encoder_decoder(encoder_size,decoder_size,embed_size,lexicon_size):
         V  = theano.shared(np.eye(decoder_size))
 
         def next_hidden_state(y_prev, h_prev):
-            """ Compute the next value of the hidden state. """
+            """
+            Compute the next value of the hidden state.
+            """
 
             z      = T.nnet.sigmoid(Wz.dot(E.dot(y_prev)) + Uz.dot(h_prev) + Cz.dot(c))
             r      = T.nnet.sigmoid(Wr.dot(E.dot(y_prev)) + Ur.dot(h_prev) + Cr.dot(c))
@@ -127,11 +129,25 @@ def encoder_decoder(encoder_size,decoder_size,embed_size,lexicon_size):
 
             return h_curr
 
-        def decode_word(y_prev, h_prev):
-            """ Decode a word. """
+        def decode_word(y_prev,h_prev):
+            """
+            Compute the next value of the hidden state,
+            and the output value for the words.
+            """
 
-            return theano.function(
-                inputs  = [c,y],
-                updates = [(h, next_hidden_state(y, h))],
-                outputs = T.nnet.softmax(Gl.dot(Gr.dot(Oh.dot(h) + Oy.dot(y_prev) + Oc.dot(c)))),
-            )
+            h_next = next_hidden_state(y_prev, h_prev)
+            s      = T.nnet.softmax(
+                Gl.dot(Gr.dot(Oh.dot(h_next) + Oy.dot(y_prev) + Oc.dot(c))))
+
+            return (h_next,s)
+
+        # Durnig training, we know the desired output phrase, and
+        # therefore we can write a scan over the output phrase.
+        # This scan will be feeding the _desired_ output word, at each
+        # position, into the decode_word call at the next position.
+
+        # During testing, however, it becomes a lot more involved to
+        # write this as a scan. Therefore, we should perhaps simply
+        # call the decode_word function, as a theano function, from
+        # Python and stop whenever we generate the end_of_sentence
+        # token.
