@@ -5,7 +5,7 @@ import numpy         as np
 import read_data
 
 class GRU:
-    def __init__(self, K, hidden_layer=8):
+    def __init__(self, K, embedding_size, hidden_layer=8):
         """
         K: dimensionality of the word embeddings
         hidden_layer: size of hidden layer
@@ -16,15 +16,15 @@ class GRU:
 
         # input weights to the hidden layer and the gates
         self.W = theano.shared(np.random.uniform(
-            size=(hidden_layer, K),
+            size=(hidden_layer, embedding_size),
             low=-0.1, high=0.1))
 
         self.Wz = theano.shared(np.random.uniform(
-            size=(hidden_layer, K),
+            size=(hidden_layer, embedding_size),
             low=-0.1, high=0.1))
 
         self.Wr = theano.shared(np.random.uniform(
-            size=(hidden_layer, K),
+            size=(hidden_layer, embedding_size),
             low=-0.1, high=0.1))
 
         # recurrent weights for the hidden layer and the gates
@@ -125,11 +125,11 @@ class Encoder(GRU):
         """
 
         # update and reset gate
-        z = T.nnet.sigmoid(self.Wz.dot(x_t) + self.Uz.dot(h_tm1))
-        r = T.nnet.sigmoid(self.Wr.dot(x_t) + self.Ur.dot(h_tm1))
+        z = T.nnet.sigmoid(self.Wz.dot(self.E.dot(x_t)) + self.Uz.dot(h_tm1))
+        r = T.nnet.sigmoid(self.Wr.dot(self.E.dot(x_t)) + self.Ur.dot(h_tm1))
 
         # candidate update
-        h_candidate = T.tanh(self.W.dot(x_t) + self.U.dot(r * h_tm1))
+        h_candidate = T.tanh(self.W.dot(self.E.dot(x_t)) + self.U.dot(r * h_tm1))
 
         return (1 - z) * (h_tm1) + z * (h_candidate)
 
