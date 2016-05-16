@@ -65,6 +65,7 @@ def main():
     error_f = theano.function(inputs=[rnn.decoder.output, ref_output],
                               outputs=error)
 
+    #theano.printing.pydotprint(error, outfile="pydotprint_error.png", var_with_name_simple=True)
     #gradient = T.grad(error, wrt=rnn.params)
     #updates = [(p, p - 0.01 * grad_p) for (p, grad_p) in zip(params, gradient)]
     

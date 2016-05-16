@@ -12,41 +12,41 @@ class Decoder(GRU):
         # additional weights for the initial input
         self.C = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='C')
 
         self.Cz = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='Cz')
 
         self.Cr = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='Cr')
 
         # the vocabulary
-        self.vocab = theano.shared(np.eye(K))
+        self.vocab = theano.shared(np.eye(K), name='vocabulary')
 
         # the first word
-        self.y0 = theano.shared(np.zeros(K))
+        self.y0 = theano.shared(np.zeros(K), name='y0')
 
         self.Gl = theano.shared(np.random.uniform(
             size=(K, embedding_size),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='Gl')
 
         self.Gr = theano.shared(np.random.uniform(
             size=(embedding_size, hidden_layer),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='Gr')
 
         self.Oh = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='Oh')
 
         self.Oy = theano.shared(np.random.uniform(
             size=(hidden_layer, K),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='Oy')
 
         self.Oc = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='Oc')
 
         # create the input and output variables of the decoder
         self.input  = enc_output
