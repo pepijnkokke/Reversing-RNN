@@ -58,7 +58,7 @@ class Decoder(GRU):
             low=-0.1, high=0.1), name='Oc')
 
         # create the input and output variables of the decoder
-        self.input  = enc_output
+        self.input  = self.V.dot(enc_output)
         self.output = self.dec_sentence()
         self.decode = theano.function(inputs=[self.input], outputs=self.output)
 
