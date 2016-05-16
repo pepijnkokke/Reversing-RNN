@@ -11,9 +11,13 @@ class Seq2Seq_RNN:
     def __init__(self, K):
         self.encoder = Encoder(K=K)
         self.decoder = Decoder(self.encoder.E, self.encoder.output, K=K)
-        self.run = theano.function(inputs=[self.encoder.input],
+        self.run = theano.function(inputs=[self.encoder.input, self.decoder.length],
                                    outputs=self.decoder.output,
                                    updates=[(self.encoder.h, self.encoder.output)])
+
+        self.run_final = theano.function(inputs=[self.encoder.input, self.decoder.length],
+                                         outputs=self.decoder.output_final,
+                                         updates=[(self.encoder.h, self.encoder.output)])
 
         self.params = [
             self.encoder.U, self.encoder.Ur, self.encoder.Uz,
@@ -69,14 +73,24 @@ def main():
     train_updates = [(p, p - 0.01 * grad_p)
                      for (p, grad_p) in zip(rnn.params, gradient)]
 
-    train = theano.function(inputs=[rnn.encoder.input, ref_output],
+    train = theano.function(inputs=[rnn.encoder.input, rnn.decoder.length, ref_output],
                             outputs=error,
                             updates=train_updates)
     
-    for _ in range(5):
-        for sentence, ref in zip(X, Y)[:3]:
-            print 'Error: {}'.format(train(sentence, ref))
+    n_epochs = int(sys.argv[2])
+    train_reference_pairs = zip(X, Y)
+    for i in range(n_epochs):
+        print 'Epoch {}:'.format(i)
+        train_idxs = np.random.choice(len(train_reference_pairs), 100)
+        for idx in train_idxs:
+            sentence, ref = train_reference_pairs[idx]
+            print 'Error: {}'.format(train(sentence, len(sentence), ref))
 
+    for sentence, ref in train_reference_pairs[:10]:
+        s = rnn.run_final(sentence, len(sentence))
+        print 'Sentence: {}'.format(' '.join(decode_sentence(sentence, encoding)))
+        print 'Reversed: {}'.format(' '.join(decode_sentence(s, encoding)))
+        print ''
 
 if __name__ == '__main__':
     main()
