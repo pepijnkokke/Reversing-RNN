@@ -11,10 +11,10 @@ class Encoder(GRU):
         # word embedding matrix
         self.E = theano.shared(np.random.uniform(
             size=(embedding_size, K),
-            low=-0.1, high=0.1))
+            low=-0.1, high=0.1), name='E')
 
         # create the input and output variables of the encoder
-        self.input  = T.matrix()
+        self.input  = T.matrix(name='input')
         self.output = self.enc_sentence(self.input)
         self.encode = theano.function(inputs=[self.input], outputs=self.output,
                                       updates=[(self.h, self.output)])
