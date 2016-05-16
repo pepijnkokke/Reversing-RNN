@@ -3,166 +3,47 @@ import theano
 import theano.tensor as T
 import numpy         as np
 import read_data
-
-class GRU:
-    def __init__(self, K, embedding_size, hidden_layer=8):
-        """
-        K: dimensionality of the word embeddings
-        hidden_layer: size of hidden layer
-        """
-
-        # state of the hidden layer
-        self.h = theano.shared(np.zeros(hidden_layer))
-
-        # input weights to the hidden layer and the gates
-        self.W = theano.shared(np.random.uniform(
-            size=(hidden_layer, embedding_size),
-            low=-0.1, high=0.1))
-
-        self.Wz = theano.shared(np.random.uniform(
-            size=(hidden_layer, embedding_size),
-            low=-0.1, high=0.1))
-
-        self.Wr = theano.shared(np.random.uniform(
-            size=(hidden_layer, embedding_size),
-            low=-0.1, high=0.1))
-
-        # recurrent weights for the hidden layer and the gates
-        self.U = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
-
-        self.Uz = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
-
-        self.Ur = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
-
-        # bonus extra final happy fun time transformation (linear)
-        self.V = theano.shared(np.eye(hidden_layer))
+from encoder import Encoder
+from decoder import Decoder
 
 
-class Decoder(GRU):
-    def __init__(self, K, hidden_layer=8):
-        GRU.__init__(self, K, hidden_layer)
+class Seq2Seq_RNN:
+    def __init__(self, K):
+        self.encoder = Encoder(K=K)
+        self.decoder = Decoder(self.encoder.E, self.encoder.output, K=K)
+        self.run = theano.function(inputs=[self.encoder.input],
+                                   outputs=self.decoder.output,
+                                   updates=[(self.encoder.h, self.encoder.output)])
 
-        # additional weights for the initial input
-        self.C = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
+        self.params = [
+            self.encoder.U, self.encoder.Ur, self.encoder.Uz,
+            self.encoder.W, self.encoder.Wr, self.encoder.Wz,
+            self.encoder.V, self.encoder.E,
 
-        self.Cz = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
-
-        self.Cr = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1))
-
-        # the vocabulary
-        self.vocab = theano.shared(np.eye(K))
-
-        # the first word
-        self.y0 = np.zeros(K)
-
-        self.G = theano.shared(np.random.uniform(
-            size=(K, K),
-            low=-0.1, high=0.1))
-
-        # create the input and output variables of the decoder
-        self.input  = T.vector()
-        self.output = T.matrix()
-        #self.decode = wisten we het maar
-
-    def dec_word(self, y_tm1, h_tm1, c):
-        """
-        Input:
-        y_tm1: the previously generated word (a K-dimensional vector)
-        h_tm1: the state of the hidden layer before the current step
-        c    : the output of the encoder
-
-        Output:
-        ht: the state of the hidden layer after the current step
-        """
-
-        # update and reset gate
-        z = T.nnet.sigmoid(self.Wz.dot(y_tm1) + self.Uz.dot(h_tm1) + self.Cz.dot(c))
-        r = T.nnet.sigmoid(self.Wr.dot(y_tm1) + self.Ur.dot(h_tm1) + self.Cr.dot(c))
-
-        # candidate update
-        h_candidate = T.tanh(self.W.dot(x_t) + self.U.dot(r * h_tm1) + self.C.dot(c))
-
-        return (1 - z) * (h_tm1) + z * (h_candidate)
-
-    def dec_sentence(self, c):
-        h = self.V.T.dot(c)
-
-        # TODO: use the hidden states and shit
-        next_word = T.max(T.nnet.softmax(G.dot(self.vocab)))
-
-
-class Encoder(GRU):
-    def __init__(self, K, hidden_layer=8):
-        GRU.__init__(self, K, hidden_layer)
-
-        # create the input and output variables of the encoder
-        self.input  = T.matrix()
-        self.output = self.enc_sentence(self.input)
-        self.encode = theano.function(inputs=[self.input], outputs=[self.output],
-                                      updates=[(self.h, self.output)])
-
-
-    def enc_word(self, x_t, h_tm1):
-        """
-        Input:
-        x_t: the current word (a K-dimensional vector)
-        h_tm1: the state of the hidden layer before the current step
-
-        Output:
-        ht: the state of the hidden layer after the current step
-        """
-
-        # update and reset gate
-        z = T.nnet.sigmoid(self.Wz.dot(self.E.dot(x_t)) + self.Uz.dot(h_tm1))
-        r = T.nnet.sigmoid(self.Wr.dot(self.E.dot(x_t)) + self.Ur.dot(h_tm1))
-
-        # candidate update
-        h_candidate = T.tanh(self.W.dot(self.E.dot(x_t)) + self.U.dot(r * h_tm1))
-
-        return (1 - z) * (h_tm1) + z * (h_candidate)
-
-
-    def enc_sentence(self, input):
-        """
-        Input: a Theano matrix variable representing an input sentence
-        Output: The variable holding the result
-        """
-
-        # This scan is basically a reduce operation.
-        #
-        # The given lambda function gets passed the elements of the sequences
-        # given in `sequences`, followed by the state of the previous
-        # iteration (whose initial value is given in `outputs_info`).
-        #
-        # It iterates over each row (first dimension) of the matrix `xs` and
-        # returns a list giving each intermediate value, along with a list of
-        # updates which we don't use.
-        results, _ = theano.scan(lambda x_t, h_tm1: self.enc_word(x_t, h_tm1),
-                                 outputs_info=self.h,
-                                 sequences=[input])
-
-        # we're only interested in the final state
-        result = results[-1]
-
-        return T.tanh(self.V.dot(result))
+            self.decoder.U, self.decoder.Ur, self.decoder.Uz,
+            self.decoder.W, self.decoder.Wr, self.decoder.Wz,
+            self.decoder.V, self.decoder.Gl, self.decoder.Gr,
+            self.decoder.C, self.decoder.Cr, self.decoder.Cz,
+            self.decoder.Oc, self.decoder.Oh, self.decoder.Oy
+        ]
 
 
 def encode_sentence(sentence, encoding, reversed=False):
     step = -1 if reversed else 1
 
     return np.array([encoding[word] for word in sentence.split(' ')[::step]])
+
+
+def decode_sentence(sentence, encoding):
+    out = []
+    for vec in sentence:
+        v = vec.tolist()
+        for word, enc in encoding.items():
+            if enc == v:
+                out.append(word)
+                break
+
+    return out
 
 
 def main():
@@ -177,18 +58,25 @@ def main():
     X = [encode_sentence(s, encoding) for s in sentences]
     Y = [encode_sentence(s, encoding, reversed=True) for s in sentences]
 
-    encoder = Encoder(39)
-    out = encoder.output
-    error = out.dot(out)
+    rnn = Seq2Seq_RNN(K=39)
 
-    # just checking if the gradient can be computed
-    grad = T.grad(error, wrt=encoder.Wr)
-    grad_f = theano.function(inputs=[encoder.input], outputs=[grad])
+    ref_output = T.matrix()
+    error = (rnn.decoder.output - ref_output).norm(1)
+    error_f = theano.function(inputs=[rnn.decoder.output, ref_output],
+                              outputs=error)
 
-    for sentence in X:
-        encoder.encode(sentence)
-        print encoder.h.eval()
-        print grad_f(sentence)
+    #gradient = T.grad(error, wrt=rnn.params)
+    #updates = [(p, p - 0.01 * grad_p) for (p, grad_p) in zip(params, gradient)]
+    
+    for _ in range(5):
+        for sentence, ref in zip(X, Y):
+            s = rnn.run(sentence)
+            print decode_sentence(s, encoding)
+            print error_f(s, ref)
+            #h = encoder.encode(sentence)
+            #words = decoder.decode(h)
+            #print decode_sentence(words, encoding)
+            break
 
 
 if __name__ == '__main__':
