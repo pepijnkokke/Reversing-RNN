@@ -5,6 +5,11 @@ from gru import GRU
 
 class Encoder(GRU):
     def __init__(self, K, embedding_size=500, hidden_layer=1000):
+        """
+        K: dimensionality of the word embeddings
+        embedding_size: dimensionality of the word embeddings
+        hidden_layer: size of hidden layer
+        """
         GRU.__init__(self, K=K, hidden_layer=hidden_layer,
                      embedding_size=embedding_size)
 

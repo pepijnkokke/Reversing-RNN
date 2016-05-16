@@ -5,11 +5,18 @@ from gru import GRU
 
 class Decoder(GRU):
     def __init__(self, E, enc_output, K, embedding_size=500, hidden_layer=1000):
+        """
+        E: the word embeddings used by the encoder
+        enc_output: the output variable of the encode
+        K: dimensionality of the word embeddings
+        embedding_size: dimensionality of the word embeddings
+        hidden_layer: size of hidden layer
+        """
         GRU.__init__(self, K, embedding_size, hidden_layer)
 
         self.E = E
 
-        # additional weights for the initial input
+        # additional weights for the context vector
         self.C = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1), name='C')
@@ -22,12 +29,14 @@ class Decoder(GRU):
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1), name='Cr')
 
-        # the vocabulary
+        # the vocabulary (an identity matrix where each row is a one-hot vector
+        # representing a word)
         self.vocab = theano.shared(np.eye(K), name='vocabulary')
 
-        # the first word
+        # the first word, which is just a vector of zeros
         self.y0 = theano.shared(np.zeros(K), name='y0')
 
+        # additional variables used in the output
         self.Gl = theano.shared(np.random.uniform(
             size=(K, embedding_size),
             low=-0.1, high=0.1), name='Gl')
@@ -83,10 +92,13 @@ class Decoder(GRU):
         return self.vocab[word_idx][0]
 
     def dec_sentence(self):
+        """
+        Decode a sentence
+        """
         result, _ = theano.scan(fn=self.generate_word,
                                 outputs_info=[self.y0],
                                 non_sequences=self.input,
-                                n_steps=5)
+                                n_steps=5) # TODO: not hardcode the output length
 
         return result
 

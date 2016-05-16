@@ -3,9 +3,13 @@ import theano.tensor as T
 import numpy         as np
 
 class GRU:
+    """
+    Base class containing the GRU weights used by both the encoder and decoder
+    """
     def __init__(self, K, embedding_size, hidden_layer=8):
         """
         K: dimensionality of the word embeddings
+        embedding_size: dimensionality of the word embeddings
         hidden_layer: size of hidden layer
         """
 
@@ -38,5 +42,5 @@ class GRU:
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1), name='Ur')
 
-        # bonus extra final happy fun time transformation (linear)
+        # the extra transformation between the encoder and decoder
         self.V = theano.shared(np.eye(hidden_layer))
