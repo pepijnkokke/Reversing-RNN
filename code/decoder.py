@@ -88,8 +88,10 @@ class Decoder(GRU):
         s = self.Oh.dot(h) + self.Oy.dot(y_tm1) + self.Oc.dot(c)
         values = G.dot(s)
 
-        word_idx = T.argmax(T.nnet.softmax(values), axis=1)
-        return self.vocab[word_idx][0]
+        # returning the softmax distribution without argmaxing to select a word
+        # makes the function differentiable
+        word_idx = T.nnet.softmax(values)
+        return word_idx[0]
 
     def dec_sentence(self):
         """

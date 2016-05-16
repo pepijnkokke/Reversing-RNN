@@ -61,23 +61,21 @@ def main():
     rnn = Seq2Seq_RNN(K=39)
 
     ref_output = T.matrix()
-    error = (rnn.decoder.output - ref_output).norm(1)
+    error = T.sum(abs(rnn.decoder.output - ref_output))
     error_f = theano.function(inputs=[rnn.decoder.output, ref_output],
                               outputs=error)
 
-    #theano.printing.pydotprint(error, outfile="pydotprint_error.png", var_with_name_simple=True)
-    #gradient = T.grad(error, wrt=rnn.params)
-    #updates = [(p, p - 0.01 * grad_p) for (p, grad_p) in zip(params, gradient)]
+    gradient = T.grad(error, wrt=rnn.params)
+    train_updates = [(p, p - 0.01 * grad_p)
+                     for (p, grad_p) in zip(rnn.params, gradient)]
+
+    train = theano.function(inputs=[rnn.encoder.input, ref_output],
+                            outputs=error,
+                            updates=train_updates)
     
     for _ in range(5):
-        for sentence, ref in zip(X, Y):
-            s = rnn.run(sentence)
-            print decode_sentence(s, encoding)
-            print error_f(s, ref)
-            #h = encoder.encode(sentence)
-            #words = decoder.decode(h)
-            #print decode_sentence(words, encoding)
-            break
+        for sentence, ref in zip(X, Y)[:3]:
+            print 'Error: {}'.format(train(sentence, ref))
 
 
 if __name__ == '__main__':
