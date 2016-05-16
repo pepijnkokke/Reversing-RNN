@@ -16,6 +16,9 @@ class Decoder(GRU):
 
         self.E = E
 
+        # length of the next desired output sentence for training
+        self.length = T.scalar(dtype='int32')
+
         # additional weights for the context vector
         self.C = theano.shared(np.random.uniform(
             size=(hidden_layer, hidden_layer),
@@ -60,7 +63,11 @@ class Decoder(GRU):
         # create the input and output variables of the decoder
         self.input  = self.V.dot(enc_output)
         self.output = self.dec_sentence()
-        self.decode = theano.function(inputs=[self.input], outputs=self.output)
+        self.decode = theano.function(inputs=[self.input, self.length], outputs=self.output)
+
+        self.output_final = self.dec_sentence_final()
+        self.decode_final = theano.function(inputs=[self.input, self.length],
+                                            outputs=self.output_final)
 
     def dec_word(self, y_tm1, h_tm1, c):
         """
@@ -100,8 +107,27 @@ class Decoder(GRU):
         result, _ = theano.scan(fn=self.generate_word,
                                 outputs_info=[self.y0, self.h],
                                 non_sequences=self.input,
-                                n_steps=5) # TODO: not hardcode the output length
+                                n_steps=self.length)
 
         return result[0]
 
+    def generate_word_final(self, y_tm1, ht, c):
+        h = self.dec_word(y_tm1, ht, c)
+        G = self.Gl.dot(self.Gr)
+        s = self.Oh.dot(h) + self.Oy.dot(y_tm1) + self.Oc.dot(c)
+        values = G.dot(s)
 
+        word_idx = T.argmax(T.nnet.softmax(values), axis=1)
+        return self.vocab[word_idx][0], h
+
+
+    def dec_sentence_final(self):
+        """
+        Decode a sentence
+        """
+        result, _ = theano.scan(fn=self.generate_word_final,
+                                outputs_info=[self.y0, self.h],
+                                non_sequences=self.input,
+                                n_steps=self.length)
+
+        return result[0]
