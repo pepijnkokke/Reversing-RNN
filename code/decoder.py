@@ -82,8 +82,8 @@ class Decoder(GRU):
 
         return z * (h_tm1) + (1 - z) * (h_candidate)
 
-    def generate_word(self, y_tm1, c):
-        h = self.dec_word(y_tm1, self.h, c)
+    def generate_word(self, y_tm1, ht, c):
+        h = self.dec_word(y_tm1, ht, c)
         G = self.Gl.dot(self.Gr)
         s = self.Oh.dot(h) + self.Oy.dot(y_tm1) + self.Oc.dot(c)
         values = G.dot(s)
@@ -91,17 +91,17 @@ class Decoder(GRU):
         # returning the softmax distribution without argmaxing to select a word
         # makes the function differentiable
         word_idx = T.nnet.softmax(values)
-        return word_idx[0]
+        return word_idx[0], h
 
     def dec_sentence(self):
         """
         Decode a sentence
         """
         result, _ = theano.scan(fn=self.generate_word,
-                                outputs_info=[self.y0],
+                                outputs_info=[self.y0, self.h],
                                 non_sequences=self.input,
                                 n_steps=5) # TODO: not hardcode the output length
 
-        return result
+        return result[0]
 
 
