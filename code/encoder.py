@@ -4,7 +4,7 @@ import numpy         as np
 
 
 class Encoder:
-    def __init__(self, nnet, K, embedding_size=500, hidden_layer=1000):
+    def __init__(self, nnet, K, embedding_size, hidden_layer):
         """
         K              : dimensionality of the word embeddings
         embedding_size : dimensionality of the word embeddings

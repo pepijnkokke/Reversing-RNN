@@ -9,14 +9,29 @@ from encoder import Encoder
 from decoder import Decoder
 
 
+EMBEDDING_SIZE = 500
+DECODER_SIZE   = 1000
+ENCODER_SIZE   = 1000
+NN_CLASS       = GRU
+
+
 class Seq2Seq_RNN:
     def __init__(self, K):
-        encoder_nnet = GRU(K, embedding_size=500, hidden_layer=1000)
-        self.encoder = Encoder(encoder_nnet, K)
-        decoder_nnet = GRU(K, embedding_size=500, hidden_layer=1000,
-                           use_context_vector=True, E=encoder_nnet.E)
-        self.decoder = Decoder(decoder_nnet, self.encoder.output,
-                               K=K, embedding_size=500, hidden_layer=1000)
+
+        encoder_nnet = NN_CLASS(
+            K, EMBEDDING_SIZE, ENCODER_SIZE,
+            use_context_vector=False, E=None)
+        self.encoder = Encoder(
+            encoder_nnet,
+            K, EMBEDDING_SIZE, ENCODER_SIZE)
+
+        decoder_nnet = NN_CLASS(
+            K, EMBEDDING_SIZE, DECODER_SIZE,
+            use_context_vector=True, E=encoder_nnet.E)
+        self.decoder = Decoder(
+            decoder_nnet, self.encoder.output,
+            K, EMBEDDING_SIZE, DECODER_SIZE)
+
         self.run = theano.function(
             inputs  = [self.encoder.input, self.decoder.length],
             outputs = self.decoder.output,
