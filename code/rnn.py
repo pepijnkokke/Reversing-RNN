@@ -3,33 +3,37 @@ import theano
 import theano.tensor as T
 import numpy         as np
 import read_data
+
+from gru     import GRU
 from encoder import Encoder
 from decoder import Decoder
 
 
 class Seq2Seq_RNN:
     def __init__(self, K):
-        self.encoder = Encoder(K=K)
-        self.decoder = Decoder(self.encoder.E, self.encoder.output, K=K)
-        self.run = theano.function(inputs=[self.encoder.input, self.decoder.length],
-                                   outputs=self.decoder.output,
-                                   updates=[(self.encoder.h, self.encoder.output)])
+        encoder_nnet = GRU(K, embedding_size=500, hidden_layer=1000)
+        self.encoder = Encoder(encoder_nnet, K)
+        decoder_nnet = GRU(K, embedding_size=500, hidden_layer=1000,
+                           use_context_vector=True, E=encoder_nnet.E)
+        self.decoder = Decoder(decoder_nnet, self.encoder.output,
+                               K=K, embedding_size=500, hidden_layer=1000)
+        self.run = theano.function(
+            inputs  = [self.encoder.input, self.decoder.length],
+            outputs = self.decoder.output,
+            updates = [(encoder_nnet.h, self.encoder.output)
+            ])
 
-        self.run_final = theano.function(inputs=[self.encoder.input, self.decoder.length],
-                                         outputs=self.decoder.output_final,
-                                         updates=[(self.encoder.h, self.encoder.output)])
+        self.run_final = theano.function(
+            inputs  = [self.encoder.input, self.decoder.length],
+            outputs = self.decoder.output_final,
+            updates = [(encoder_nnet.h, self.encoder.output)])
 
-        self.params = [
-            self.encoder.U, self.encoder.Ur, self.encoder.Uz,
-            self.encoder.W, self.encoder.Wr, self.encoder.Wz,
-            self.encoder.V, self.encoder.E,
+        self.params = []
+        self.params.extend(self.encoder.params)
+        self.params.extend(self.decoder.params)
 
-            self.decoder.U, self.decoder.Ur, self.decoder.Uz,
-            self.decoder.W, self.decoder.Wr, self.decoder.Wz,
-            self.decoder.V, self.decoder.Gl, self.decoder.Gr,
-            self.decoder.C, self.decoder.Cr, self.decoder.Cz,
-            self.decoder.Oc, self.decoder.Oh, self.decoder.Oy
-        ]
+        # this kinda messes with the order of the parameters
+        self.params = list(set(self.params))
 
 
 def encode_sentence(sentence, encoding, reversed=False):
@@ -73,10 +77,11 @@ def main():
     train_updates = [(p, p - 0.01 * grad_p)
                      for (p, grad_p) in zip(rnn.params, gradient)]
 
-    train = theano.function(inputs=[rnn.encoder.input, rnn.decoder.length, ref_output],
-                            outputs=error,
-                            updates=train_updates)
-    
+    train = theano.function(
+        inputs  = [rnn.encoder.input, rnn.decoder.length, ref_output],
+        outputs = error,
+        updates = train_updates)
+
     n_epochs = int(sys.argv[2])
     train_reference_pairs = zip(X, Y)
     for i in range(n_epochs):

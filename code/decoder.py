@@ -1,36 +1,22 @@
 import theano
 import theano.tensor as T
 import numpy         as np
-from gru import GRU
 
-class Decoder(GRU):
-    def __init__(self, E, enc_output, K, embedding_size=500, hidden_layer=1000):
-        """
-        E: the word embeddings used by the encoder
-        enc_output: the output variable of the encode
-        K: dimensionality of the word embeddings
-        embedding_size: dimensionality of the word embeddings
-        hidden_layer: size of hidden layer
-        """
-        GRU.__init__(self, K, embedding_size, hidden_layer)
 
-        self.E = E
+class Decoder:
+    def __init__(self, nnet, enc_output, K, embedding_size=500, hidden_layer=1000):
+        """
+        E              : the word embeddings used by the encoder
+        enc_output     : the output variable of the encode
+        K              : dimensionality of the word embeddings
+        embedding_size : dimensionality of the word embeddings
+        hidden_layer   : size of hidden layer
+        """
+        #GRU.__init__(self, K, embedding_size, hidden_layer, True, E)
+        self.nnet   = nnet
 
         # length of the next desired output sentence for training
         self.length = T.scalar(dtype='int32')
-
-        # additional weights for the context vector
-        self.C = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1), name='C')
-
-        self.Cz = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1), name='Cz')
-
-        self.Cr = theano.shared(np.random.uniform(
-            size=(hidden_layer, hidden_layer),
-            low=-0.1, high=0.1), name='Cr')
 
         # the vocabulary (an identity matrix where each row is a one-hot vector
         # representing a word)
@@ -60,37 +46,25 @@ class Decoder(GRU):
             size=(hidden_layer, hidden_layer),
             low=-0.1, high=0.1), name='Oc')
 
+        # update the references to include the new parameters
+        self.params = nnet.params
+        self.params.extend([self.Gl, self.Gr, self.Oc, self.Oh, self.Oy])
+
         # create the input and output variables of the decoder
-        self.input  = self.V.dot(enc_output)
+        self.input  = T.dot(self.nnet.V,enc_output) # T.tanh(?)
         self.output = self.dec_sentence()
-        self.decode = theano.function(inputs=[self.input, self.length], outputs=self.output)
+        self.decode = theano.function(
+            inputs  = [self.input, self.length],
+            outputs = self.output)
 
         self.output_final = self.dec_sentence_final()
-        self.decode_final = theano.function(inputs=[self.input, self.length],
-                                            outputs=self.output_final)
+        self.decode_final = theano.function(
+            inputs  = [self.input, self.length],
+            outputs = self.output_final)
 
-    def dec_word(self, y_tm1, h_tm1, c):
-        """
-        Input:
-        y_tm1: the previously generated word (a K-dimensional vector)
-        h_tm1: the state of the hidden layer before the current step
-        c    : the output of the encoder
-
-        Output:
-        ht: the state of the hidden layer after the current step
-        """
-
-        # update and reset gate
-        z = T.nnet.sigmoid(self.Wz.dot(self.E.dot(y_tm1)) + self.Uz.dot(h_tm1) + self.Cz.dot(c))
-        r = T.nnet.sigmoid(self.Wr.dot(self.E.dot(y_tm1)) + self.Ur.dot(h_tm1) + self.Cr.dot(c))
-
-        # candidate update
-        h_candidate = T.tanh(self.W.dot(self.E.dot(y_tm1)) + self.U.dot(r * h_tm1) + self.C.dot(c))
-
-        return z * (h_tm1) + (1 - z) * (h_candidate)
 
     def generate_word(self, y_tm1, ht, c):
-        h = self.dec_word(y_tm1, ht, c)
+        h = self.nnet.compute(y_tm1, ht, c)
         G = self.Gl.dot(self.Gr)
         s = self.Oh.dot(h) + self.Oy.dot(y_tm1) + self.Oc.dot(c)
         values = G.dot(s)
@@ -100,19 +74,22 @@ class Decoder(GRU):
         word_idx = T.nnet.softmax(values)
         return word_idx[0], h
 
+
     def dec_sentence(self):
         """
         Decode a sentence
         """
-        result, _ = theano.scan(fn=self.generate_word,
-                                outputs_info=[self.y0, self.h],
-                                non_sequences=self.input,
-                                n_steps=self.length)
+        result, _ = theano.scan(
+            fn            = self.generate_word,
+            outputs_info  = [self.y0, self.nnet.h],
+            non_sequences = self.input,
+            n_steps       = self.length)
 
         return result[0]
 
+
     def generate_word_final(self, y_tm1, ht, c):
-        h = self.dec_word(y_tm1, ht, c)
+        h = self.nnet.compute(y_tm1, ht, c)
         G = self.Gl.dot(self.Gr)
         s = self.Oh.dot(h) + self.Oy.dot(y_tm1) + self.Oc.dot(c)
         values = G.dot(s)
@@ -125,9 +102,10 @@ class Decoder(GRU):
         """
         Decode a sentence
         """
-        result, _ = theano.scan(fn=self.generate_word_final,
-                                outputs_info=[self.y0, self.h],
-                                non_sequences=self.input,
-                                n_steps=self.length)
+        result, _ = theano.scan(
+            fn            = self.generate_word_final,
+            outputs_info  = [self.y0, self.nnet.h],
+            non_sequences = self.input,
+            n_steps       = self.length)
 
         return result[0]
