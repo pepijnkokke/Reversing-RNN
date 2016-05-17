@@ -51,7 +51,7 @@ class Decoder:
         self.params.extend([self.Gl, self.Gr, self.Oc, self.Oh, self.Oy])
 
         # create the input and output variables of the decoder
-        self.input  = T.dot(self.nnet.V,enc_output) # T.tanh(?)
+        self.input  = T.tanh(T.dot(self.nnet.V,enc_output)) # T.tanh(?)
         self.output = self.dec_sentence()
         self.decode = theano.function(
             inputs  = [self.input, self.length],

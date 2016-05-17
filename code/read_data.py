@@ -1,4 +1,5 @@
 import numpy as np
+import itertools
 import re
 
 
@@ -8,16 +9,11 @@ def get_sentences(path):
     """
     with open(path, 'r') as f:
         lines = f.readlines()
+    return [re.sub(r"\s+",' ',l) for l in lines]
 
-    # replace tabs (optionally preceded with a space) with a space
-    lines = [re.sub(r' ?\t', ' ', line) for line in lines]
 
-    regex = re.compile(r"""(\d+) # the prefixed line number
-                           \     # followed by a space
-                           (.*)  # the rest of the sentence""", re.VERBOSE)
-
-    # second regex group is the part we're interested in
-    return [re.match(regex, line).groups()[1] for line in lines]
+def sentence_to_tokens(sentence):
+    return re.findall(r"[\w']+|[.,!?;]", sentence)
 
 
 def sentences_to_word_encodings(sentences):
@@ -25,14 +21,13 @@ def sentences_to_word_encodings(sentences):
     Convert a list of loaded sentences to a dictionary mapping words to their
     representational vectors.
     """
-    word_lists = [line.split(' ') for line in sentences]
-    words = set(word for word_list in word_lists for word in word_list)
+    sentences = [sentence_to_tokens(s) for s in sentences]
+    tokens    = list(set(itertools.chain.from_iterable(sentences)))
+    K         = len(tokens)
 
-    mapping = {}
-    for i, word in enumerate(words):
-        encoding = [0] * len(words)
-        encoding[i] = 1
-
-        mapping[word] = encoding
-
-    return mapping
+    encoding = {}
+    for i, token in enumerate(tokens):
+        token_encoding    = [0] * K
+        token_encoding[i] = 1
+        encoding[token]   = token_encoding
+    return (K, encoding)
