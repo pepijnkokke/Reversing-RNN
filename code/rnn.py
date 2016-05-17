@@ -1,101 +1,75 @@
-import sys
 import theano
 import theano.tensor as T
 import numpy         as np
-import read_data
 
-from gru     import GRU
-from encoder import Encoder
-from decoder import Decoder
-
-
-class Seq2Seq_RNN:
-    def __init__(self, K):
-        encoder_nnet = GRU(K, embedding_size=500, hidden_layer=1000)
-        self.encoder = Encoder(encoder_nnet, K)
-        decoder_nnet = GRU(K, embedding_size=500, hidden_layer=1000,
-                           use_context_vector=True, E=encoder_nnet.E)
-        self.decoder = Decoder(decoder_nnet, self.encoder.output,
-                               K=K, embedding_size=500, hidden_layer=1000)
-        self.run = theano.function(
-            inputs  = [self.encoder.input, self.decoder.length],
-            outputs = self.decoder.output,
-            updates = [(encoder_nnet.h, self.encoder.output)
-            ])
-
-        self.run_final = theano.function(
-            inputs  = [self.encoder.input, self.decoder.length],
-            outputs = self.decoder.output_final,
-            updates = [(encoder_nnet.h, self.encoder.output)])
-
-        self.params = []
-        self.params.extend(self.encoder.params)
-        self.params.extend(self.decoder.params)
-
-        # this kinda messes with the order of the parameters
-        self.params = list(set(self.params))
-
-
-def encode_sentence(sentence, encoding, reversed=False):
-    step = -1 if reversed else 1
-
-    return np.array([encoding[word] for word in sentence.split(' ')[::step]])
-
-
-def decode_sentence(sentence, encoding):
-    out = []
-    for vec in sentence:
-        v = vec.tolist()
-        for word, enc in encoding.items():
-            if enc == v:
-                out.append(word)
-                break
-
-    return out
-
-
-def main():
+class RNN:
     """
-    Expects a path to the training data as the first argument, for example:
-    python2 code/rnn.py data/en/qa1_single-supporting-fact_train.txt
+    Base class containing the RNN weights used by both the encoder and decoder
     """
-    sentences = read_data.get_sentences(sys.argv[1])
-    encoding = read_data.sentences_to_word_encodings(sentences)
+    def __init__(self,
+                 K,
+                 embedding_size,
+                 hidden_layer=8,
+                 use_context_vector=False,
+                 E=None):
+        """
+        K                  : dimensionality of the word embeddings
+        embedding_size     : dimensionality of the word embeddings
+        hidden_layer       : size of hidden layer
+        use_context_vector : whether or not to use a context vector
+        E                  : a word embedding to use (optional)
+        """
 
-    # create the input (X) and desired output (Y)
-    X = [encode_sentence(s, encoding) for s in sentences]
-    Y = [encode_sentence(s, encoding, reversed=True) for s in sentences]
+        # state of the hidden layer
+        self.h = theano.shared(np.zeros(hidden_layer), name='h')
 
-    rnn = Seq2Seq_RNN(K=39)
+        # input weights to the hidden layer
+        self.W = theano.shared(np.random.uniform(
+            size=(hidden_layer, embedding_size),
+            low=-0.1, high=0.1), name='W')
 
-    ref_output = T.matrix()
-    error = T.sum(abs(rnn.decoder.output - ref_output))
-    error_f = theano.function(inputs=[rnn.decoder.output, ref_output],
-                              outputs=error)
+        # recurrent weights for the hidden layer
+        self.U = theano.shared(np.random.uniform(
+            size=(hidden_layer, hidden_layer),
+            low=-0.1, high=0.1), name='U')
 
-    gradient = T.grad(error, wrt=rnn.params)
-    train_updates = [(p, p - 0.01 * grad_p)
-                     for (p, grad_p) in zip(rnn.params, gradient)]
+        # the extra transformation between the encoder and decoder
+        self.V = theano.shared(np.eye(hidden_layer))
 
-    train = theano.function(
-        inputs  = [rnn.encoder.input, rnn.decoder.length, ref_output],
-        outputs = error,
-        updates = train_updates)
+        # word embedding matrix
+        if E is None:
+            self.E = theano.shared(np.random.uniform(
+                size=(embedding_size, K),
+                low=-0.1, high=0.1), name='E')
+        else:
+            self.E = E
 
-    n_epochs = int(sys.argv[2])
-    train_reference_pairs = zip(X, Y)
-    for i in range(n_epochs):
-        print 'Epoch {}:'.format(i)
-        train_idxs = np.random.choice(len(train_reference_pairs), 100)
-        for idx in train_idxs:
-            sentence, ref = train_reference_pairs[idx]
-            print 'Error: {}'.format(train(sentence, len(sentence), ref))
+        self.params = [self.W, self.U, self.V, self.E]
 
-    for sentence, ref in train_reference_pairs[:10]:
-        s = rnn.run_final(sentence, len(sentence))
-        print 'Sentence: {}'.format(' '.join(decode_sentence(sentence, encoding)))
-        print 'Reversed: {}'.format(' '.join(decode_sentence(s, encoding)))
-        print ''
+        # additional weights for the context vector
+        if use_context_vector:
 
-if __name__ == '__main__':
-    main()
+            self.C = theano.shared(np.random.uniform(
+                size=(hidden_layer, hidden_layer),
+                low=-0.1, high=0.1), name='C')
+
+            self.params.extend([self.C])
+
+
+    def compute(self, x_t, h_tm1, c=None):
+        """
+        Input
+        x_t    : the current word (a K-dimensional vector)
+        h_tm1  : the state of the hidden layer before the current step
+
+        Output
+        h_t    : the state of the hidden layer after the current step
+        """
+
+        if c is None:
+
+            return T.tanh(self.W.dot(self.E.dot(x_t)) + self.U.dot(h_tm1))
+
+        else:
+
+            return T.tanh(self.W.dot(self.E.dot(x_t)) + self.U.dot(h_tm1) + self.C.dot(c))
