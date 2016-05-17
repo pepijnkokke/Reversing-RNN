@@ -139,22 +139,22 @@ def answer_task(NNClass, n_epochs, sentences, K, encoding):
                 q_   = encode_sentence(q+'?', encoding)
                 a_   = encode_sentence(a    , encoding)
                 err  = train_f(q_, len(a_), a_)
-                errs.append(err)
+                errs.append(err / float(len(a_)))
             else:
                 s_ = encode_sentence(s, encoding)
                 encdec.encoder.encode(s_)
 
-            sys.stdout.write("\r{}/{}".format(j,len(sentences)))
+            sys.stdout.write("\r{}: {}/{}".format(i, j,len(sentences)))
             sys.stdout.flush()
 
-        print("\nAverage Error: {}".format(sum(errors) / float(len(errors))))
+        print("\nAverage Error: {}".format(sum(errs) / float(len(errs))))
 
     for s in sentences:
         if '?' in s: # Answer required
             q, a = s.split('?')
             q_   = encode_sentence(q+'?', encoding)
             a_   = encode_sentence(a    , encoding)
-            est  = encdec.run_final(q_,a_)
+            est  = encdec.run_final(q_,len(a_))
             print("Q: {}? A: {}? A: {}.".format(
                 q, decode_sentence(est, encoding), a))
         else:
@@ -168,15 +168,17 @@ def main():
     Expects a path to the training data as the first argument, for example:
     python2 code/main.py GRU 10 data/en/qa1_single-supporting-fact_train.txt
     """
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
 
-        print "Usage: main.py GRU 10 [DATA_SET]"
+        print "Usage: python2 main.py GRU 10 [DATA_SET] [reverse|answer]"
 
     else:
 
         NNClass   = NN_CLASS_DICT[sys.argv[1]]
         n_epochs  = int(sys.argv[2])
         data_file = sys.argv[3]
+        TASK_DICT = { "reverse": reverse_task, "answer": answer_task }
+        task_func = TASK_DICT[sys.argv[4]]
 
         outp_file = os.path.join(
             os.path.dirname(data_file),
@@ -186,7 +188,7 @@ def main():
         K,encoding = read_data.sentences_to_word_encodings(sentences)
         print("K={}".format(K))
 
-        answer_task(NNClass, n_epochs, sentences, K, encoding)
+        task_func(NNClass, n_epochs, sentences, K, encoding)
 
 if __name__ == '__main__':
     main()
